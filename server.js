@@ -6,6 +6,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 const compression = require('compression');
 require('dotenv').config();
+process.env.TZ = 'Asia/Jerusalem';
 
 const app = express();
 
