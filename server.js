@@ -29,7 +29,7 @@ app.use(compression());
 const corsOptions = {
     origin: [
         'https://gansecondhome.com',
-        'https://obedh61.github.io/gan-fronted'
+        'https://obedh61.github.io'
     ],
 
     methods: ['POST', 'GET', 'PUT', 'DELETE'],
