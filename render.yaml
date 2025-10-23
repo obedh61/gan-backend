@@ -1,0 +1,15 @@
+services:
+- type: web
+  name: gansecondhome-backend
+  runtime: node
+  region: frankfurt # o la más cercana a tus usuarios
+  plan: free
+  buildCommand: npm install
+  startCommand: npm start
+  envVars:
+  - key: NODE_ENV
+    value: production
+  - key: DATABASE
+    sync: false
+  - key: SESSION_SECRET
+    sync: false
