@@ -36,6 +36,7 @@ const corsOptions = {
     credentials: true,
 };
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Session setup
 app.use(session({
