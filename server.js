@@ -30,7 +30,8 @@ app.use(compression());
 const corsOptions = {
     origin: [
         'https://gansecondhome.com',
-        'https://obedh61.github.io'
+        'https://obedh61.github.io',
+        'http://localhost:3000'
     ],
 
     methods: ['POST', 'GET', 'PUT', 'DELETE'],
