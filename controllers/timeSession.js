@@ -156,6 +156,7 @@ exports.fetchSessions = async (req, res) => {
       const totalMinutes = Math.ceil((durationMs % (1000 * 60 * 60)) / (1000 * 60));
 
       return{
+        _id: session._id,
         day: startTime.date(),
         month: startTime.month() + 1,
         year: startTime.year(),
@@ -175,6 +176,35 @@ exports.fetchSessions = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error fetching sessions" });
+  }
+};
+
+exports.updateSession = async (req, res) => {
+  const { id } = req.params;
+  const { timeIn, timeOut, day, month, year } = req.body;
+
+  try {
+    const startTime = moment.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${timeIn}`, 'YYYY-MM-DD HH:mm', 'Asia/Jerusalem').toDate();
+    const endTime = moment.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${timeOut}`, 'YYYY-MM-DD HH:mm', 'Asia/Jerusalem').toDate();
+
+    if (endTime <= startTime) {
+      return res.status(400).json({ message: 'End time must be after start time' });
+    }
+
+    const session = await TimeSession.findByIdAndUpdate(
+      id,
+      { startTime, endTime },
+      { new: true }
+    );
+
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    res.status(200).json(session);
+  } catch (err) {
+    console.error('Error updating session:', err);
+    res.status(500).json({ message: 'Failed to update session' });
   }
 };
 
