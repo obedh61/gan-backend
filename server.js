@@ -31,9 +31,10 @@ const corsOptions = {
     origin: [
         'https://gansecondhome.com',
         'https://obedh61.github.io',
+        'http://localhost:3000'
     ],
 
-    methods: ['POST', 'GET', 'PUT', 'DELETE'],
+    methods: ['POST', 'GET', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
 };
 app.use(cors(corsOptions));
@@ -59,6 +60,8 @@ const childRoutes = require('./routes/child');
 const addWorkerRoutes = require('./routes/worker');
 const addhoursRoutes = require('./routes/addHours');
 const timesessionRoutes = require('./routes/timeSession');
+const schoolYearRoutes = require('./routes/schoolYear');
+const childRegistrationRoutes = require('./routes/childRegistration');
 
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
@@ -66,6 +69,8 @@ app.use('/api', childRoutes);
 app.use('/api', addWorkerRoutes);
 app.use('/api', addhoursRoutes);
 app.use('/api', timesessionRoutes);
+app.use('/api', schoolYearRoutes);
+app.use('/api', childRegistrationRoutes);
 app.get('/api/health', (req, res) => res.status(200).send('OK'));
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
