@@ -165,7 +165,7 @@ const sendActivationEmail = async (email, token, transporter) => {
       text: 'Welcome to Gan Montessori Second Home',
       html: `
         <h1>Please use the following link to activate your account</h1>
-        <p>${curl}/auth/activate/${token}</p>
+        <p>${curl}/#/auth/activate/${token}</p>
         <hr />
         <p>This email contains sensitive information</p>
         <p>${curl}</p>
@@ -401,7 +401,7 @@ exports.forgotPassword = async (req, res) => {
       text: 'and easy to do anywhere, even with Node.js',
       html: `
         <h1>Please use the following link to reset your password.</h1>
-        <p>${curl}/auth/password/reset/${token}</p>
+        <p>${curl}/#/auth/password/reset/${token}</p>
         <hr />
         <p>This email contains sensitive information</p>
         <p>${curl}</p>
