@@ -1,6 +1,9 @@
+const mongoose = require('mongoose')
 const SchoolYear = require('../models/SchoolYear')
 const ChildRegistration = require('../models/ChildRegistration')
 const { uploadContractPDF, deleteContractPDF } = require('../utils/cloudinaryUpload')
+
+const isValidObjectId = (id) => mongoose.isValidObjectId(id)
 
 const VALID_CONTRACT_TYPES = [
     'cityCenterUnderOne',
@@ -69,12 +72,30 @@ exports.listSchoolYears = async (req, res) => {
             query.isActive = false
         }
 
-        const schoolYears = await SchoolYear.find(query)
-            .populate('createdBy', 'name')
-            .sort({ startYear: -1 })
-            .exec()
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50))
+        const skip = (page - 1) * limit
 
-        res.json({ success: true, data: schoolYears })
+        const [schoolYears, total] = await Promise.all([
+            SchoolYear.find(query)
+                .populate('createdBy', 'name')
+                .sort({ startYear: -1 })
+                .skip(skip)
+                .limit(limit)
+                .exec(),
+            SchoolYear.countDocuments(query).exec()
+        ])
+
+        res.json({
+            success: true,
+            data: schoolYears,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        })
     } catch (err) {
         console.log('LIST SCHOOL YEARS ERROR', err)
         return res.status(500).json({
@@ -105,7 +126,15 @@ exports.getActiveSchoolYears = async (req, res) => {
 // GET /api/schoolyear/:id
 exports.getSchoolYear = async (req, res) => {
     try {
-        const schoolYear = await SchoolYear.findById(req.params.id)
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
+        const schoolYear = await SchoolYear.findById(id)
             .populate('createdBy', 'name')
             .exec()
 
@@ -129,7 +158,15 @@ exports.getSchoolYear = async (req, res) => {
 // PUT /api/schoolyear/:id/toggle-active
 exports.toggleActiveStatus = async (req, res) => {
     try {
-        const schoolYear = await SchoolYear.findById(req.params.id).exec()
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
+        const schoolYear = await SchoolYear.findById(id).exec()
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
@@ -156,7 +193,15 @@ exports.toggleActiveStatus = async (req, res) => {
 // DELETE /api/schoolyear/:id
 exports.deleteSchoolYear = async (req, res) => {
     try {
-        const schoolYear = await SchoolYear.findById(req.params.id).exec()
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
+        const schoolYear = await SchoolYear.findById(id).exec()
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
@@ -166,7 +211,7 @@ exports.deleteSchoolYear = async (req, res) => {
 
         // Check if any registrations exist for this school year
         const registrationCount = await ChildRegistration.countDocuments({
-            schoolYear: req.params.id
+            schoolYear: id
         }).exec()
 
         if (registrationCount > 0) {
@@ -187,7 +232,7 @@ exports.deleteSchoolYear = async (req, res) => {
         }
         await Promise.all(deletePromises)
 
-        await SchoolYear.findByIdAndDelete(req.params.id).exec()
+        await SchoolYear.findByIdAndDelete(id).exec()
         res.json({ success: true, message: 'School year deleted successfully' })
     } catch (err) {
         console.log('DELETE SCHOOL YEAR ERROR', err)
@@ -201,6 +246,14 @@ exports.deleteSchoolYear = async (req, res) => {
 // POST /api/schoolyear/:id/upload-contract
 exports.uploadContract = async (req, res) => {
     try {
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
         const { contractType } = req.body
 
         if (!VALID_CONTRACT_TYPES.includes(contractType)) {
@@ -217,7 +270,7 @@ exports.uploadContract = async (req, res) => {
             })
         }
 
-        const schoolYear = await SchoolYear.findById(req.params.id).exec()
+        const schoolYear = await SchoolYear.findById(id).exec()
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
@@ -261,6 +314,14 @@ exports.uploadContract = async (req, res) => {
 // GET /api/schoolyear/:id/contract
 exports.getContractByParams = async (req, res) => {
     try {
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
         const { branch, ageGroup } = req.query
 
         if (!branch || !ageGroup) {
@@ -287,7 +348,7 @@ exports.getContractByParams = async (req, res) => {
             })
         }
 
-        const schoolYear = await SchoolYear.findById(req.params.id).exec()
+        const schoolYear = await SchoolYear.findById(id).exec()
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,

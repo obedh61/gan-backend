@@ -1,7 +1,13 @@
+const mongoose = require('mongoose')
 const User = require('../models/user')
 
 exports.read = (req, res) => {
     const userId = req.params.id;
+    if (!mongoose.isValidObjectId(userId)) {
+        return res.status(400).json({
+            error: 'Invalid user ID'
+        })
+    }
     User.findById(userId).exec()
         .then(user => {
             if (!user) {

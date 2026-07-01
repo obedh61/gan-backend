@@ -8,7 +8,9 @@ const {
     getMyRegistrations,
     getRegistration,
     getPendingRegistrations,
+    getAllRegistrations,
     getRegistrationsBySchoolYear,
+    getRegistrationBreakdowns,
     approveRegistration,
     rejectRegistration,
     deleteRegistration,
@@ -28,7 +30,9 @@ router.post('/registration/:id/upload-contract', requireSingin, uploadSignedCont
 // ADMIN ROUTES (auth + admin)
 // ============================================
 router.get('/registration/pending', requireSingin, adminMiddleware, getPendingRegistrations)
+router.get('/registration/all', requireSingin, adminMiddleware, getAllRegistrations)
 router.get('/registration/by-school-year/:schoolYearId', requireSingin, adminMiddleware, getRegistrationsBySchoolYear)
+router.get('/registration/by-school-year/:schoolYearId/breakdown', requireSingin, adminMiddleware, getRegistrationBreakdowns)
 router.get('/registration/stats/:schoolYearId', requireSingin, adminMiddleware, getSchoolYearStats)
 router.patch('/registration/:id/approve', requireSingin, adminMiddleware, approveRegistration)
 router.patch('/registration/:id/reject', requireSingin, adminMiddleware, rejectRegistration)

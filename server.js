@@ -21,26 +21,36 @@ mongoose.connect(process.env.DATABASE)
 
 // Middleware
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '1mb' }));
 app.use(helmet());
 app.use(compression());
 
 
 
-const corsOptions = {
-    origin: [
-        'https://gansecondhome.com',
-        'https://obedh61.github.io',
-        'http://localhost:3000'
-    ],
+const allowedOrigins = [
+    'https://gansecondhome.com',
+    'https://obedh61.github.io'
+];
+if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push('http://localhost:3000');
+}
 
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     methods: ['POST', 'GET', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
 };
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// Session setup
+// Session setup (kept for backward compatibility, but legacy session routes are disabled below)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'default-secret',
     resave: false,
@@ -48,7 +58,7 @@ app.use(session({
     cookie: {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000,
     },
 }));
@@ -56,18 +66,18 @@ app.use(session({
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
-const childRoutes = require('./routes/child');
+// const childRoutes = require('./routes/child');           // LEGACY: disabled
 const addWorkerRoutes = require('./routes/worker');
-const addhoursRoutes = require('./routes/addHours');
+// const addhoursRoutes = require('./routes/addHours');     // LEGACY: disabled
 const timesessionRoutes = require('./routes/timeSession');
 const schoolYearRoutes = require('./routes/schoolYear');
 const childRegistrationRoutes = require('./routes/childRegistration');
 
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
-app.use('/api', childRoutes);
+// app.use('/api', childRoutes);     // LEGACY: disabled
 app.use('/api', addWorkerRoutes);
-app.use('/api', addhoursRoutes);
+// app.use('/api', addhoursRoutes);  // LEGACY: disabled
 app.use('/api', timesessionRoutes);
 app.use('/api', schoolYearRoutes);
 app.use('/api', childRegistrationRoutes);

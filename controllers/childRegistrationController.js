@@ -1,10 +1,107 @@
+const mongoose = require('mongoose')
 const ChildRegistration = require('../models/ChildRegistration')
 const SchoolYear = require('../models/SchoolYear')
 const User = require('../models/user')
 const { uploadContractPDF, deleteContractPDF } = require('../utils/cloudinaryUpload')
+const sendEmail = require('../utils/sendEmail')
 
 // Map ageGroup values (under1/over1) to SchoolYear model format (underOne/overOne)
 const ageGroupMap = { under1: 'underOne', over1: 'overOne' }
+
+const isValidObjectId = (id) => mongoose.isValidObjectId(id)
+
+const getPagination = (req) => {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20))
+    const skip = (page - 1) * limit
+    return { page, limit, skip }
+}
+
+const sendStatusNotification = async (registration, status, rejectionReason = '') => {
+    try {
+        const recipient = registration.registeredBy?.email
+        if (!recipient) return
+
+        const childName = registration.childName
+        const schoolYearName = registration.schoolYear?.name || 'the selected school year'
+        const subject = status === 'approved'
+            ? `Registration approved for ${childName}`
+            : `Registration update for ${childName}`
+
+        const html = status === 'approved'
+            ? `<p>Hello,</p>
+               <p>We are happy to inform you that the registration of <strong>${childName}</strong> for <strong>${schoolYearName}</strong> has been <strong>approved</strong>.</p>
+               <p>If you have not uploaded the signed contract yet, you can do so from your registrations page.</p>
+               <p>Best regards,<br>Gan Second Home</p>`
+            : `<p>Hello,</p>
+               <p>We regret to inform you that the registration of <strong>${childName}</strong> for <strong>${schoolYearName}</strong> has been <strong>rejected</strong>.</p>
+               <p><strong>Reason:</strong> ${rejectionReason}</p>
+               <p>If you believe this was a mistake, please contact the administration.</p>
+               <p>Best regards,<br>Gan Second Home</p>`
+
+        await sendEmail({
+            to: recipient,
+            subject,
+            text: `Registration for ${childName} has been ${status}.`,
+            html
+        })
+    } catch (err) {
+        console.log('STATUS NOTIFICATION EMAIL ERROR', err)
+    }
+}
+
+const sendAdminNotification = async (registration) => {
+    try {
+        let recipients = []
+        if (process.env.EMAIL_TO) {
+            recipients = process.env.EMAIL_TO.split(',').map(email => email.trim()).filter(Boolean)
+        }
+
+        if (recipients.length === 0) {
+            const admins = await User.find({ role: 'admin' }).select('email').exec()
+            recipients = admins.map(admin => admin.email).filter(Boolean)
+        }
+
+        if (recipients.length === 0) {
+            console.log('ADMIN NOTIFICATION: no admin recipients configured')
+            return
+        }
+
+        const childName = registration.childName
+        const schoolYearName = registration.schoolYear?.name || 'Unknown school year'
+        const registeredBy = registration.registeredBy
+        const adminUrl = process.env.ADMIN_URL || 'https://gansecondhome.com/#/admin/registrations'
+
+        const subject = `New child registration: ${childName}`
+        const text = `A new registration has been submitted for ${childName} (${schoolYearName}).\n\n` +
+            `Branch: ${registration.branch}\n` +
+            `Age Group: ${registration.ageGroup}\n` +
+            `Parent 1: ${registration.parent1FirstName} ${registration.parent1LastName} (${registration.parent1IdNumber})\n` +
+            `Parent 2: ${registration.parent2FirstName} ${registration.parent2LastName} (${registration.parent2IdNumber})\n` +
+            `Submitted by: ${registeredBy?.name || '-'} (${registeredBy?.email || '-'})\n\n` +
+            `Review it here: ${adminUrl}`
+
+        const html = `<p>A new registration has been submitted for <strong>${childName}</strong> (${schoolYearName}).</p>
+            <ul>
+                <li><strong>Branch:</strong> ${registration.branch}</li>
+                <li><strong>Age Group:</strong> ${registration.ageGroup}</li>
+                <li><strong>Parent 1:</strong> ${registration.parent1FirstName} ${registration.parent1LastName} (${registration.parent1IdNumber})</li>
+                <li><strong>Parent 2:</strong> ${registration.parent2FirstName} ${registration.parent2LastName} (${registration.parent2IdNumber})</li>
+                <li><strong>Submitted by:</strong> ${registeredBy?.name || '-'} (${registeredBy?.email || '-'})</li>
+            </ul>
+            <p><a href="${adminUrl}">Review registration</a></p>
+            <p>Best regards,<br>Gan Second Home</p>`
+
+        await sendEmail({
+            to: recipients,
+            subject,
+            text,
+            html
+        })
+    } catch (err) {
+        console.log('ADMIN NOTIFICATION EMAIL ERROR', err)
+    }
+}
 
 // ============================================
 // PUBLIC / USER ROUTES (auth only)
@@ -46,6 +143,14 @@ exports.createRegistration = async (req, res) => {
             })
         }
 
+        // Validate schoolYearId format
+        if (!isValidObjectId(schoolYearId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
         // Verify school year exists and is active
         const schoolYear = await SchoolYear.findById(schoolYearId).exec()
         if (!schoolYear) {
@@ -64,6 +169,20 @@ exports.createRegistration = async (req, res) => {
         // Get the appropriate contract URL based on branch + ageGroup
         const mappedAgeGroup = ageGroupMap[ageGroup]
         const assignedContractUrl = schoolYear.getContractUrl(branch, mappedAgeGroup)
+
+        // Prevent duplicate registration for the same child by the same user in the same school year
+        const existingRegistration = await ChildRegistration.findOne({
+            schoolYear: schoolYearId,
+            registeredBy: req.auth._id,
+            childName: { $regex: new RegExp(`^${childName.trim()}$`, 'i') }
+        }).exec()
+
+        if (existingRegistration) {
+            return res.status(409).json({
+                success: false,
+                error: 'A registration for this child already exists for the selected school year'
+            })
+        }
 
         const registration = new ChildRegistration({
             schoolYear: schoolYearId,
@@ -87,7 +206,11 @@ exports.createRegistration = async (req, res) => {
         const saved = await registration.save()
         const populated = await ChildRegistration.findById(saved._id)
             .populate('schoolYear', 'name')
+            .populate('registeredBy', 'name email')
             .exec()
+
+        // Notify admins (fire-and-forget: do not fail the request if email fails)
+        sendAdminNotification(populated).catch(err => console.log('ADMIN NOTIFICATION ERROR', err))
 
         res.json({ success: true, data: populated })
     } catch (err) {
@@ -102,6 +225,14 @@ exports.createRegistration = async (req, res) => {
 // 2. POST /api/registration/:id/upload-contract
 exports.uploadSignedContract = async (req, res) => {
     try {
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid registration ID'
+            })
+        }
+
         if (!req.file) {
             return res.status(400).json({
                 success: false,
@@ -109,7 +240,7 @@ exports.uploadSignedContract = async (req, res) => {
             })
         }
 
-        const registration = await ChildRegistration.findById(req.params.id).exec()
+        const registration = await ChildRegistration.findById(id).exec()
         if (!registration) {
             return res.status(404).json({
                 success: false,
@@ -152,17 +283,133 @@ exports.uploadSignedContract = async (req, res) => {
     }
 }
 
-// 3. GET /api/registration/my-registrations
-exports.getMyRegistrations = async (req, res) => {
+// 3. GET /api/registration/all (admin only)
+exports.getAllRegistrations = async (req, res) => {
     try {
-        const registrations = await ChildRegistration.find({
-            registeredBy: req.auth._id
+        const { page, limit, skip } = getPagination(req)
+        const query = {}
+
+        // Optional filter by status
+        if (req.query.status && ['pending', 'approved', 'rejected'].includes(req.query.status)) {
+            query.status = req.query.status
+        }
+
+        // Optional search by child name or parent names
+        if (req.query.search) {
+            const searchRegex = new RegExp(req.query.search.trim(), 'i')
+            query.$or = [
+                { childName: searchRegex },
+                { parent1FirstName: searchRegex },
+                { parent1LastName: searchRegex },
+                { parent2FirstName: searchRegex },
+                { parent2LastName: searchRegex }
+            ]
+        }
+
+        const [registrations, total] = await Promise.all([
+            ChildRegistration.find(query)
+                .populate('schoolYear', 'name')
+                .populate('registeredBy', 'name email')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .exec(),
+            ChildRegistration.countDocuments(query).exec()
+        ])
+
+        res.json({
+            success: true,
+            data: registrations,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
         })
-            .populate('schoolYear', 'name')
-            .sort({ createdAt: -1 })
+    } catch (err) {
+        console.log('GET ALL REGISTRATIONS ERROR', err)
+        return res.status(500).json({
+            success: false,
+            error: 'Error fetching registrations'
+        })
+    }
+}
+
+// GET /api/registration/by-school-year/:schoolYearId/breakdown
+exports.getRegistrationBreakdowns = async (req, res) => {
+    try {
+        const { schoolYearId } = req.params
+        if (!isValidObjectId(schoolYearId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
+        const registrations = await ChildRegistration.find({ schoolYear: schoolYearId })
+            .select('branch status ageGroup')
             .exec()
 
-        res.json({ success: true, data: registrations })
+        const branches = {
+            cityCenter: { total: 0, pending: 0, approved: 0, rejected: 0 },
+            germanColony: { total: 0, pending: 0, approved: 0, rejected: 0 }
+        }
+        const ages = {
+            under1: { total: 0, pending: 0, approved: 0, rejected: 0 },
+            over1: { total: 0, pending: 0, approved: 0, rejected: 0 }
+        }
+
+        registrations.forEach(reg => {
+            if (branches[reg.branch]) {
+                branches[reg.branch].total++
+                branches[reg.branch][reg.status]++
+            }
+            if (ages[reg.ageGroup]) {
+                ages[reg.ageGroup].total++
+                ages[reg.ageGroup][reg.status]++
+            }
+        })
+
+        res.json({
+            success: true,
+            data: { branches, ages }
+        })
+    } catch (err) {
+        console.log('GET REGISTRATION BREAKDOWNS ERROR', err)
+        return res.status(500).json({
+            success: false,
+            error: 'Error fetching registration breakdowns'
+        })
+    }
+}
+
+// GET /api/registration/my-registrations
+exports.getMyRegistrations = async (req, res) => {
+    try {
+        const { page, limit, skip } = getPagination(req)
+        const query = { registeredBy: req.auth._id }
+
+        const [registrations, total] = await Promise.all([
+            ChildRegistration.find(query)
+                .populate('schoolYear', 'name')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .exec(),
+            ChildRegistration.countDocuments(query).exec()
+        ])
+
+        res.json({
+            success: true,
+            data: registrations,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        })
     } catch (err) {
         console.log('GET MY REGISTRATIONS ERROR', err)
         return res.status(500).json({
@@ -175,7 +422,15 @@ exports.getMyRegistrations = async (req, res) => {
 // 4. GET /api/registration/:id
 exports.getRegistration = async (req, res) => {
     try {
-        const registration = await ChildRegistration.findById(req.params.id)
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid registration ID'
+            })
+        }
+
+        const registration = await ChildRegistration.findById(id)
             .populate('schoolYear', 'name startMonth startYear endMonth endYear')
             .populate('registeredBy', 'name email')
             .populate('reviewedBy', 'name')
@@ -217,13 +472,30 @@ exports.getRegistration = async (req, res) => {
 // 5. GET /api/registration/pending
 exports.getPendingRegistrations = async (req, res) => {
     try {
-        const registrations = await ChildRegistration.find({ status: 'pending' })
-            .populate('schoolYear', 'name')
-            .populate('registeredBy', 'name')
-            .sort({ createdAt: -1 })
-            .exec()
+        const { page, limit, skip } = getPagination(req)
 
-        res.json({ success: true, data: registrations })
+        const query = { status: 'pending' }
+        const [registrations, total] = await Promise.all([
+            ChildRegistration.find(query)
+                .populate('schoolYear', 'name')
+                .populate('registeredBy', 'name')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .exec(),
+            ChildRegistration.countDocuments(query).exec()
+        ])
+
+        res.json({
+            success: true,
+            data: registrations,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        })
     } catch (err) {
         console.log('GET PENDING REGISTRATIONS ERROR', err)
         return res.status(500).json({
@@ -236,21 +508,44 @@ exports.getPendingRegistrations = async (req, res) => {
 // 6. GET /api/registration/by-school-year/:schoolYearId
 exports.getRegistrationsBySchoolYear = async (req, res) => {
     try {
-        const query = { schoolYear: req.params.schoolYearId }
+        const { schoolYearId } = req.params
+        if (!isValidObjectId(schoolYearId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
+
+        const { page, limit, skip } = getPagination(req)
+        const query = { schoolYear: schoolYearId }
 
         // Optional filter by status
         if (req.query.status && ['pending', 'approved', 'rejected'].includes(req.query.status)) {
             query.status = req.query.status
         }
 
-        const registrations = await ChildRegistration.find(query)
-            .populate('schoolYear', 'name')
-            .populate('registeredBy', 'name email')
-            .populate('reviewedBy', 'name')
-            .sort({ createdAt: -1 })
-            .exec()
+        const [registrations, total] = await Promise.all([
+            ChildRegistration.find(query)
+                .populate('schoolYear', 'name')
+                .populate('registeredBy', 'name email')
+                .populate('reviewedBy', 'name')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .exec(),
+            ChildRegistration.countDocuments(query).exec()
+        ])
 
-        res.json({ success: true, data: registrations })
+        res.json({
+            success: true,
+            data: registrations,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        })
     } catch (err) {
         console.log('GET REGISTRATIONS BY SCHOOL YEAR ERROR', err)
         return res.status(500).json({
@@ -263,7 +558,15 @@ exports.getRegistrationsBySchoolYear = async (req, res) => {
 // 7. PATCH /api/registration/:id/approve
 exports.approveRegistration = async (req, res) => {
     try {
-        const registration = await ChildRegistration.findById(req.params.id).exec()
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid registration ID'
+            })
+        }
+
+        const registration = await ChildRegistration.findById(id).exec()
         if (!registration) {
             return res.status(404).json({
                 success: false,
@@ -289,6 +592,8 @@ exports.approveRegistration = async (req, res) => {
             .populate('reviewedBy', 'name')
             .exec()
 
+        await sendStatusNotification(populated, 'approved')
+
         res.json({
             success: true,
             message: 'Registration approved successfully',
@@ -306,6 +611,14 @@ exports.approveRegistration = async (req, res) => {
 // 8. PATCH /api/registration/:id/reject
 exports.rejectRegistration = async (req, res) => {
     try {
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid registration ID'
+            })
+        }
+
         const { rejectionReason } = req.body
         if (!rejectionReason) {
             return res.status(400).json({
@@ -314,7 +627,7 @@ exports.rejectRegistration = async (req, res) => {
             })
         }
 
-        const registration = await ChildRegistration.findById(req.params.id).exec()
+        const registration = await ChildRegistration.findById(id).exec()
         if (!registration) {
             return res.status(404).json({
                 success: false,
@@ -341,6 +654,8 @@ exports.rejectRegistration = async (req, res) => {
             .populate('reviewedBy', 'name')
             .exec()
 
+        await sendStatusNotification(populated, 'rejected', rejectionReason)
+
         res.json({
             success: true,
             message: 'Registration rejected',
@@ -358,7 +673,15 @@ exports.rejectRegistration = async (req, res) => {
 // 9. DELETE /api/registration/:id
 exports.deleteRegistration = async (req, res) => {
     try {
-        const registration = await ChildRegistration.findById(req.params.id).exec()
+        const { id } = req.params
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid registration ID'
+            })
+        }
+
+        const registration = await ChildRegistration.findById(id).exec()
         if (!registration) {
             return res.status(404).json({
                 success: false,
@@ -371,7 +694,7 @@ exports.deleteRegistration = async (req, res) => {
             await deleteContractPDF(registration.uploadedContractPublicId).catch(() => {})
         }
 
-        await ChildRegistration.findByIdAndDelete(req.params.id).exec()
+        await ChildRegistration.findByIdAndDelete(id).exec()
 
         res.json({
             success: true,
@@ -389,7 +712,13 @@ exports.deleteRegistration = async (req, res) => {
 // 10. GET /api/registration/stats/:schoolYearId
 exports.getSchoolYearStats = async (req, res) => {
     try {
-        const schoolYearId = req.params.schoolYearId
+        const { schoolYearId } = req.params
+        if (!isValidObjectId(schoolYearId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid school year ID'
+            })
+        }
 
         // Verify school year exists
         const schoolYear = await SchoolYear.findById(schoolYearId).select('name').exec()
