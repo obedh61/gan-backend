@@ -4,22 +4,22 @@ exports.userSignupValidator = [
     check('name')
         .not()
         .isEmpty()
-        .withMessage('Name is required'),
+        .withMessage((value, { req }) => req.t('validation.nameRequired')),
     check('email')
         .isEmail()
-        .withMessage('Must be a valid email address'),
+        .withMessage((value, { req }) => req.t('validation.validEmail')),
     check('password')
         .isLength({min: 6})
-        .withMessage('Password must be at least 6 characters long')
+        .withMessage((value, { req }) => req.t('validation.passwordMinLength'))
 ]
 
 exports.userSigninValidator = [
     check('email')
         .isEmail()
-        .withMessage('Must be a valid email address'),
+        .withMessage((value, { req }) => req.t('validation.validEmail')),
     check('password')
         .isLength({min: 6})
-        .withMessage('Password must be at least 6 characters long')
+        .withMessage((value, { req }) => req.t('validation.passwordMinLength'))
 ]
 
 exports.forgotPasswordValidator = [
@@ -27,7 +27,7 @@ exports.forgotPasswordValidator = [
         .not()
         .isEmpty()
         .isEmail()
-        .withMessage('Must be a valid email address')
+        .withMessage((value, { req }) => req.t('validation.validEmail'))
 ]
 
 exports.resetPasswordValidator = [
@@ -35,5 +35,5 @@ exports.resetPasswordValidator = [
         .not()
         .isEmpty()
         .isLength({ min: 6 })
-        .withMessage('Password must be at least 6 characters long')
+        .withMessage((value, { req }) => req.t('validation.passwordMinLength'))
 ]

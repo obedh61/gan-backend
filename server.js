@@ -50,6 +50,23 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// Language detection from Accept-Language header
+const { getTranslator, DEFAULT_LANG, SUPPORTED_LANGS } = require('./utils/i18n');
+app.use((req, res, next) => {
+    const acceptLang = req.headers['accept-language'];
+    let lang = DEFAULT_LANG;
+    if (acceptLang) {
+        const primary = acceptLang.split(',')[0].trim().split('-')[0].toLowerCase();
+        if (SUPPORTED_LANGS.includes(primary)) {
+            lang = primary;
+        }
+    }
+    req.lang = lang;
+    const { t } = getTranslator(lang);
+    req.t = t;
+    next();
+});
+
 // Session setup (kept for backward compatibility, but legacy session routes are disabled below)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'default-secret',

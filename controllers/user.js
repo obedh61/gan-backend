@@ -5,14 +5,14 @@ exports.read = (req, res) => {
     const userId = req.params.id;
     if (!mongoose.isValidObjectId(userId)) {
         return res.status(400).json({
-            error: 'Invalid user ID'
+            error: req.t('user.invalidId')
         })
     }
     User.findById(userId).exec()
         .then(user => {
             if (!user) {
                 return res.status(400).json({
-                    error: 'User not found'
+                    error: req.t('user.notFound')
                 })
             }
             user.hashed_password = undefined
@@ -32,12 +32,12 @@ exports.update = (req, res) => {
         .then(user => {
             if(!user) {
                 return res.status(400).json({
-                    error: 'User not found'
+                    error: req.t('user.notFound')
                 })
             }
             if(!name) {
                 return res.status(400).json({
-                    error: 'Name is required'
+                    error: req.t('user.nameRequired')
                 })
             } else {
                 user.name = name
@@ -45,7 +45,7 @@ exports.update = (req, res) => {
             if(password) {
                 if(password.length < 6) {
                     return res.status(400).json({
-                        error: 'Password should be min 6 characters long'
+                        error: req.t('user.passwordMinLength')
                     })
                 } else {
                     user.password = password
@@ -61,7 +61,7 @@ exports.update = (req, res) => {
                 .catch(e => {
                     console.log('USER UPDATE ERROR', e);
                     return res.status(400).json({
-                        error: 'User update failed'
+                        error: req.t('user.updateFailed')
                     })
                 })
         });

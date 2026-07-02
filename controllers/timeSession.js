@@ -35,14 +35,14 @@ exports.startTime = async (req, res) => {
       });
   
       if (existingSession) {
-        return res.status(400).json({ message: 'Work session already logged for today' });
+        return res.status(400).json({ message: req.t('timeSession.alreadyLoggedToday') });
       }
       // Verificar si hay una sesión activa
       const activeSession = await TimeSession.findOne({ idNumber, endTime: null });
       if (activeSession) {
         return res
           .status(400)
-          .send({ message: 'You already have an active session. Please end it before starting a new one.' });
+          .send({ message: req.t('timeSession.activeSessionExists') });
       }
   
       // Crear una nueva sesión
@@ -60,7 +60,7 @@ exports.endTime = async (req, res) => {
     
     try {
       if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') {
-        return res.status(400).send({ message: 'Invalid location format' });
+        return res.status(400).send({ message: req.t('timeSession.invalidLocation') });
       }
 
       const session = await TimeSession.findOneAndUpdate(
@@ -69,7 +69,7 @@ exports.endTime = async (req, res) => {
         { new: true }
       );
       if (!session) {
-        return res.status(404).send({ message: 'No active session found' });
+        return res.status(404).send({ message: req.t('timeSession.noActiveSession') });
       }
       res.status(200).send(session);
     } catch (error) {
@@ -133,7 +133,7 @@ exports.worksession = async (req, res) => {
     res.status(200).json(sessionsWithTotalHours);
   } catch (err) {
     console.error('Error fetching sessions:', err);
-    res.status(500).json({ message: 'Failed to fetch sessions' });
+    res.status(500).json({ message: req.t('timeSession.fetchError') });
   }
 };
 
@@ -178,14 +178,14 @@ exports.fetchSessions = async (req, res) => {
     res.status(200).json(formattedSessions);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error fetching sessions" });
+    res.status(500).json({ message: req.t('timeSession.fetchError') });
   }
 };
 
 exports.updateSession = async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) {
-    return res.status(400).json({ message: 'Invalid session ID' });
+    return res.status(400).json({ message: req.t('timeSession.invalidId') });
   }
   const { timeIn, timeOut, day, month, year } = req.body;
 
@@ -194,7 +194,7 @@ exports.updateSession = async (req, res) => {
     const endTime = moment.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${timeOut}`, 'YYYY-MM-DD HH:mm', 'Asia/Jerusalem').toDate();
 
     if (endTime <= startTime) {
-      return res.status(400).json({ message: 'End time must be after start time' });
+      return res.status(400).json({ message: req.t('timeSession.endTimeAfterStart') });
     }
 
     const session = await TimeSession.findByIdAndUpdate(
@@ -204,13 +204,13 @@ exports.updateSession = async (req, res) => {
     );
 
     if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
+      return res.status(404).json({ message: req.t('timeSession.notFound') });
     }
 
     res.status(200).json(session);
   } catch (err) {
     console.error('Error updating session:', err);
-    res.status(500).json({ message: 'Failed to update session' });
+    res.status(500).json({ message: req.t('timeSession.updateError') });
   }
 };
 
@@ -287,7 +287,7 @@ exports.exportSessions = async (req, res) => {
     res.send(csv);
   } catch (err) {
     console.error('Error exporting sessions:', err);
-    res.status(500).json({ message: 'Failed to export sessions' });
+    res.status(500).json({ message: req.t('timeSession.exportError') });
   }
 };
 
@@ -386,7 +386,6 @@ exports.exportSessionsPDF = async (req, res) => {
     doc.end();
   } catch (err) {
     console.error('Error exporting sessions PDF:', err);
-    res.status(500).json({ message: 'Failed to export sessions PDF' });
+    res.status(500).json({ message: req.t('timeSession.exportPdfError') });
   }
 };
-

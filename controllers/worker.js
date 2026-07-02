@@ -4,20 +4,20 @@ const Child = require('../models/Child');
 exports.addWorker = async (req, res) => {
     const { username, idNumber } = req.body;
     if (!username || !idNumber) {
-      return res.status(400).json({ message: 'Username and ID number are required' });
+      return res.status(400).json({ message: req.t('worker.usernameIdRequired') });
     }
   
     try {
       const existingUser = await Worker.findOne({ idNumber });
       if (existingUser) {
-        return res.status(400).json({ message: 'User with this ID number already exists' });
+        return res.status(400).json({ message: req.t('worker.idExists') });
       }
   
       const user = new Worker({ username, idNumber });
       await user.save();
       res.status(201).json(user);
     } catch (err) {
-      res.status(500).json({ message: 'Error creating user', error: err });
+      res.status(500).json({ message: req.t('worker.createError'), error: err });
     }
 }
 
@@ -38,10 +38,10 @@ exports.addChild = async (req, res) => {
 
     // Guardar en la base de datos
     await newChild.save();
-    res.status(201).json({ message: 'Child added successfully' });
+    res.status(201).json({ message: req.t('worker.childAdded') });
   } catch (error) {
     console.error('Error adding child:', error);
-    res.status(500).json({ message: 'Error adding child' });
+    res.status(500).json({ message: req.t('worker.childAddError') });
   }
 };
 
@@ -51,7 +51,7 @@ exports.getChildren = async (req, res) => {
     res.status(200).json(children);
   } catch (error) {
     console.error('Error fetching children:', error);
-    res.status(500).json({ message: 'Error fetching children' });
+    res.status(500).json({ message: req.t('worker.childFetchError') });
   }
 };
 
@@ -60,10 +60,10 @@ exports.deleteChild = async (req, res) => {
 
   try {
     await Child.findByIdAndDelete(id);
-    res.status(200).json({ message: 'Child deleted successfully' });
+    res.status(200).json({ message: req.t('worker.childDeleted') });
   } catch (error) {
     console.error('Error deleting child:', error);
-    res.status(500).json({ message: 'Error deleting child' });
+    res.status(500).json({ message: req.t('worker.childDeleteError') });
   }
 };
 
@@ -73,7 +73,7 @@ exports.getWorkers = async (req, res) => {
     res.status(200).json(workers);
   } catch (err) {
     console.error("Error fetching workers:", err);
-    res.status(500).json({ message: "Failed to fetch workers." });
+    res.status(500).json({ message: req.t('worker.fetchError') });
   }
 }
 
@@ -83,11 +83,26 @@ exports.deleteWorker = async (req, res) => {
   try {
     const result = await Worker.findOneAndDelete({ idNumber });
     if (!result) {
-      return res.status(404).json({ message: "Worker not found." });
+      return res.status(404).json({ message: req.t('worker.notFound') });
     }
-    res.status(200).json({ message: "Worker deleted successfully." });
+    res.status(200).json({ message: req.t('worker.deleted') });
   } catch (err) {
     console.error("Error deleting worker:", err);
-    res.status(500).json({ message: "Failed to delete worker." });
+    res.status(500).json({ message: req.t('worker.deleteError') });
+  }
+}
+
+exports.getWorkerByIdNumber = async (req, res) => {
+  const { idNumber } = req.params;
+
+  try {
+    const worker = await Worker.findOne({ idNumber }).select('username idNumber').exec();
+    if (!worker) {
+      return res.status(404).json({ message: req.t('worker.notFound') });
+    }
+    res.status(200).json(worker);
+  } catch (err) {
+    console.error('Error fetching worker:', err);
+    res.status(500).json({ message: req.t('worker.fetchError') });
   }
 }

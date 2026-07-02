@@ -27,18 +27,18 @@ const handlePdfUploadError = (err, req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 success: false,
-                error: 'File too large. Maximum size is 10MB'
+                error: req.t('pdfUpload.fileTooLarge')
             })
         }
         if (err.code === 'LIMIT_UNEXPECTED_FILE') {
             return res.status(400).json({
                 success: false,
-                error: 'Only PDF files are allowed'
+                error: req.t('pdfUpload.onlyPdf')
             })
         }
         return res.status(400).json({
             success: false,
-            error: `Upload error: ${err.message}`
+            error: req.t('pdfUpload.uploadError', { message: err.message })
         })
     }
 

@@ -29,7 +29,7 @@ exports.createSchoolYear = async (req, res) => {
         if (!name || !startMonth || !startYear || !endMonth || !endYear) {
             return res.status(400).json({
                 success: false,
-                error: 'All fields are required: name, startMonth, startYear, endMonth, endYear'
+                error: req.t('schoolYear.allFieldsRequired')
             })
         }
 
@@ -37,7 +37,7 @@ exports.createSchoolYear = async (req, res) => {
         if (existing) {
             return res.status(400).json({
                 success: false,
-                error: 'School year with this name already exists'
+                error: req.t('schoolYear.nameExists')
             })
         }
 
@@ -56,7 +56,7 @@ exports.createSchoolYear = async (req, res) => {
         console.log('CREATE SCHOOL YEAR ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error creating school year'
+            error: req.t('schoolYear.createError')
         })
     }
 }
@@ -100,7 +100,7 @@ exports.listSchoolYears = async (req, res) => {
         console.log('LIST SCHOOL YEARS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching school years'
+            error: req.t('schoolYear.fetchError')
         })
     }
 }
@@ -118,7 +118,7 @@ exports.getActiveSchoolYears = async (req, res) => {
         console.log('GET ACTIVE SCHOOL YEARS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching active school years'
+            error: req.t('schoolYear.fetchActiveError')
         })
     }
 }
@@ -130,7 +130,7 @@ exports.getSchoolYear = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('schoolYear.invalidId')
             })
         }
 
@@ -141,7 +141,7 @@ exports.getSchoolYear = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('schoolYear.notFound')
             })
         }
 
@@ -150,7 +150,7 @@ exports.getSchoolYear = async (req, res) => {
         console.log('GET SCHOOL YEAR ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching school year'
+            error: req.t('schoolYear.fetchOneError')
         })
     }
 }
@@ -162,7 +162,7 @@ exports.toggleActiveStatus = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('schoolYear.invalidId')
             })
         }
 
@@ -170,7 +170,7 @@ exports.toggleActiveStatus = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('schoolYear.notFound')
             })
         }
 
@@ -178,14 +178,16 @@ exports.toggleActiveStatus = async (req, res) => {
         const updated = await schoolYear.save()
         res.json({
             success: true,
-            message: `School year ${updated.isActive ? 'activated' : 'deactivated'} successfully`,
+            message: req.t('schoolYear.toggled', {
+                status: updated.isActive ? 'activated' : 'deactivated'
+            }),
             data: updated
         })
     } catch (err) {
         console.log('TOGGLE ACTIVE STATUS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error toggling school year status'
+            error: req.t('schoolYear.toggleError')
         })
     }
 }
@@ -197,7 +199,7 @@ exports.deleteSchoolYear = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('schoolYear.invalidId')
             })
         }
 
@@ -205,7 +207,7 @@ exports.deleteSchoolYear = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('schoolYear.notFound')
             })
         }
 
@@ -217,7 +219,7 @@ exports.deleteSchoolYear = async (req, res) => {
         if (registrationCount > 0) {
             return res.status(400).json({
                 success: false,
-                error: `Cannot delete, has ${registrationCount} registration(s)`
+                error: req.t('schoolYear.cannotDelete', { count: registrationCount })
             })
         }
 
@@ -233,12 +235,12 @@ exports.deleteSchoolYear = async (req, res) => {
         await Promise.all(deletePromises)
 
         await SchoolYear.findByIdAndDelete(id).exec()
-        res.json({ success: true, message: 'School year deleted successfully' })
+        res.json({ success: true, message: req.t('schoolYear.deleted') })
     } catch (err) {
         console.log('DELETE SCHOOL YEAR ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error deleting school year'
+            error: req.t('schoolYear.deleteError')
         })
     }
 }
@@ -250,7 +252,7 @@ exports.uploadContract = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('schoolYear.invalidId')
             })
         }
 
@@ -259,14 +261,14 @@ exports.uploadContract = async (req, res) => {
         if (!VALID_CONTRACT_TYPES.includes(contractType)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid contract type. Must be one of: ' + VALID_CONTRACT_TYPES.join(', ')
+                error: req.t('schoolYear.invalidContractType')
             })
         }
 
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                error: 'No PDF file uploaded'
+                error: req.t('schoolYear.noPdfUploaded')
             })
         }
 
@@ -274,7 +276,7 @@ exports.uploadContract = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('schoolYear.notFound')
             })
         }
 
@@ -294,7 +296,7 @@ exports.uploadContract = async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Contract uploaded successfully',
+            message: req.t('schoolYear.contractUploaded'),
             data: {
                 contractType,
                 url: result.url,
@@ -306,7 +308,7 @@ exports.uploadContract = async (req, res) => {
         console.log('UPLOAD CONTRACT ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error uploading contract'
+            error: req.t('schoolYear.contractUploadError')
         })
     }
 }
@@ -318,7 +320,7 @@ exports.getContractByParams = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('schoolYear.invalidId')
             })
         }
 
@@ -327,7 +329,7 @@ exports.getContractByParams = async (req, res) => {
         if (!branch || !ageGroup) {
             return res.status(400).json({
                 success: false,
-                error: 'branch and ageGroup query params are required'
+                error: req.t('schoolYear.branchAgeGroupRequired')
             })
         }
 
@@ -337,14 +339,14 @@ exports.getContractByParams = async (req, res) => {
         if (!validBranches.includes(branch)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid branch. Must be one of: ' + validBranches.join(', ')
+                error: req.t('schoolYear.invalidBranch')
             })
         }
 
         if (!validAgeGroups.includes(ageGroup)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid ageGroup. Must be one of: ' + validAgeGroups.join(', ')
+                error: req.t('schoolYear.invalidAgeGroup')
             })
         }
 
@@ -352,7 +354,7 @@ exports.getContractByParams = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('schoolYear.notFound')
             })
         }
 
@@ -363,7 +365,7 @@ exports.getContractByParams = async (req, res) => {
         if (!contractUrl) {
             return res.status(404).json({
                 success: false,
-                error: 'No contract uploaded for this branch and age group'
+                error: req.t('schoolYear.noContract')
             })
         }
 
@@ -372,7 +374,7 @@ exports.getContractByParams = async (req, res) => {
         console.log('GET CONTRACT ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching contract'
+            error: req.t('schoolYear.fetchContractError')
         })
     }
 }

@@ -4,6 +4,7 @@ const SchoolYear = require('../models/SchoolYear')
 const User = require('../models/user')
 const { uploadContractPDF, deleteContractPDF } = require('../utils/cloudinaryUpload')
 const sendEmail = require('../utils/sendEmail')
+const buildEmail = require('../utils/emailLayout')
 
 // Map ageGroup values (under1/over1) to SchoolYear model format (underOne/overOne)
 const ageGroupMap = { under1: 'underOne', over1: 'overOne' }
@@ -17,40 +18,49 @@ const getPagination = (req) => {
     return { page, limit, skip }
 }
 
-const sendStatusNotification = async (registration, status, rejectionReason = '') => {
+const sendStatusNotification = async (req, registration, status, rejectionReason = '') => {
     try {
         const recipient = registration.registeredBy?.email
         if (!recipient) return
 
         const childName = registration.childName
-        const schoolYearName = registration.schoolYear?.name || 'the selected school year'
-        const subject = status === 'approved'
-            ? `Registration approved for ${childName}`
-            : `Registration update for ${childName}`
+        const schoolYearName = registration.schoolYear?.name || req.t('reg.schoolYearNotFound')
+        const lang = req.lang || 'en'
 
-        const html = status === 'approved'
-            ? `<p>Hello,</p>
-               <p>We are happy to inform you that the registration of <strong>${childName}</strong> for <strong>${schoolYearName}</strong> has been <strong>approved</strong>.</p>
-               <p>If you have not uploaded the signed contract yet, you can do so from your registrations page.</p>
-               <p>Best regards,<br>Gan Second Home</p>`
-            : `<p>Hello,</p>
-               <p>We regret to inform you that the registration of <strong>${childName}</strong> for <strong>${schoolYearName}</strong> has been <strong>rejected</strong>.</p>
-               <p><strong>Reason:</strong> ${rejectionReason}</p>
-               <p>If you believe this was a mistake, please contact the administration.</p>
-               <p>Best regards,<br>Gan Second Home</p>`
+        if (status === 'approved') {
+            const title = req.t('email.registrationApproval.heading')
+            const subject = req.t('email.registrationApproval.subject', { childName })
+            const contentHtml = `
+                <p style="font-size: 16px; line-height: 1.6;">${req.t('email.registrationApproval.intro', { childName, schoolYearName })}</p>
+                <div style="background-color: #f4f6f5; border-left: 4px solid #4A7B59; padding: 16px; margin: 20px 0; border-radius: 6px;">
+                    <p style="margin: 0; color: #333333;">${req.t('email.registrationApproval.contractReminder')}</p>
+                </div>
+            `
+            const html = buildEmail({ title, contentHtml, t: req.t, lang })
+            const text = `${req.t('email.registrationApproval.intro', { childName, schoolYearName })}\n\n${req.t('email.registrationApproval.contractReminder')}`
 
-        await sendEmail({
-            to: recipient,
-            subject,
-            text: `Registration for ${childName} has been ${status}.`,
-            html
-        })
+            await sendEmail({ to: recipient, subject, text, html })
+        } else {
+            const title = req.t('email.registrationRejection.heading')
+            const subject = req.t('email.registrationRejection.subject', { childName })
+            const contentHtml = `
+                <p style="font-size: 16px; line-height: 1.6;">${req.t('email.registrationRejection.intro', { childName, schoolYearName })}</p>
+                <div style="background-color: #fff5f5; border-left: 4px solid #e53e3e; padding: 16px; margin: 20px 0; border-radius: 6px;">
+                    <p style="margin: 0; color: #333333;"><strong>${req.t('email.registrationRejection.reasonLabel')}:</strong> ${rejectionReason}</p>
+                </div>
+                <p style="font-size: 16px; line-height: 1.6;">${req.t('email.registrationRejection.contact')}</p>
+            `
+            const html = buildEmail({ title, contentHtml, t: req.t, lang })
+            const text = `${req.t('email.registrationRejection.intro', { childName, schoolYearName })}\n\n${req.t('email.registrationRejection.reasonLabel')}: ${rejectionReason}\n${req.t('email.registrationRejection.contact')}`
+
+            await sendEmail({ to: recipient, subject, text, html })
+        }
     } catch (err) {
         console.log('STATUS NOTIFICATION EMAIL ERROR', err)
     }
 }
 
-const sendAdminNotification = async (registration) => {
+const sendAdminNotification = async (req, registration) => {
     try {
         let recipients = []
         if (process.env.EMAIL_TO) {
@@ -68,29 +78,39 @@ const sendAdminNotification = async (registration) => {
         }
 
         const childName = registration.childName
-        const schoolYearName = registration.schoolYear?.name || 'Unknown school year'
+        const schoolYearName = registration.schoolYear?.name || req.t('reg.schoolYearNotFound')
         const registeredBy = registration.registeredBy
         const adminUrl = process.env.ADMIN_URL || 'https://gansecondhome.com/#/admin/registrations'
+        const lang = req.lang || 'en'
 
-        const subject = `New child registration: ${childName}`
-        const text = `A new registration has been submitted for ${childName} (${schoolYearName}).\n\n` +
-            `Branch: ${registration.branch}\n` +
-            `Age Group: ${registration.ageGroup}\n` +
-            `Parent 1: ${registration.parent1FirstName} ${registration.parent1LastName} (${registration.parent1IdNumber})\n` +
-            `Parent 2: ${registration.parent2FirstName} ${registration.parent2LastName} (${registration.parent2IdNumber})\n` +
-            `Submitted by: ${registeredBy?.name || '-'} (${registeredBy?.email || '-'})\n\n` +
-            `Review it here: ${adminUrl}`
+        const title = req.t('email.newRegistrationAdmin.heading')
+        const subject = req.t('email.newRegistrationAdmin.subject', { childName })
+        const text = `${req.t('email.newRegistrationAdmin.intro', { childName, schoolYearName })}\n\n` +
+            `${req.t('email.newRegistrationAdmin.branchLabel')}: ${registration.branch}\n` +
+            `${req.t('email.newRegistrationAdmin.ageGroupLabel')}: ${registration.ageGroup}\n` +
+            `${req.t('email.newRegistrationAdmin.parent1Label')}: ${registration.parent1FirstName} ${registration.parent1LastName} (${registration.parent1IdNumber})\n` +
+            `${req.t('email.newRegistrationAdmin.parent2Label')}: ${registration.parent2FirstName} ${registration.parent2LastName} (${registration.parent2IdNumber})\n` +
+            `${req.t('email.newRegistrationAdmin.submittedByLabel')}: ${registeredBy?.name || '-'} (${registeredBy?.email || '-'})\n\n` +
+            `${req.t('email.newRegistrationAdmin.review')}: ${adminUrl}`
 
-        const html = `<p>A new registration has been submitted for <strong>${childName}</strong> (${schoolYearName}).</p>
-            <ul>
-                <li><strong>Branch:</strong> ${registration.branch}</li>
-                <li><strong>Age Group:</strong> ${registration.ageGroup}</li>
-                <li><strong>Parent 1:</strong> ${registration.parent1FirstName} ${registration.parent1LastName} (${registration.parent1IdNumber})</li>
-                <li><strong>Parent 2:</strong> ${registration.parent2FirstName} ${registration.parent2LastName} (${registration.parent2IdNumber})</li>
-                <li><strong>Submitted by:</strong> ${registeredBy?.name || '-'} (${registeredBy?.email || '-'})</li>
-            </ul>
-            <p><a href="${adminUrl}">Review registration</a></p>
-            <p>Best regards,<br>Gan Second Home</p>`
+        const contentHtml = `
+            <p style="font-size: 16px; line-height: 1.6;">${req.t('email.newRegistrationAdmin.intro', { childName, schoolYearName })}</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 20px 0; background-color: #fafafa; border-radius: 8px; overflow: hidden;">
+                <tr>
+                    <td style="padding: 16px;">
+                        <p style="margin: 8px 0; color: #333333;"><strong>${req.t('email.newRegistrationAdmin.branchLabel')}:</strong> ${registration.branch}</p>
+                        <p style="margin: 8px 0; color: #333333;"><strong>${req.t('email.newRegistrationAdmin.ageGroupLabel')}:</strong> ${registration.ageGroup}</p>
+                        <p style="margin: 8px 0; color: #333333;"><strong>${req.t('email.newRegistrationAdmin.parent1Label')}:</strong> ${registration.parent1FirstName} ${registration.parent1LastName} (${registration.parent1IdNumber})</p>
+                        <p style="margin: 8px 0; color: #333333;"><strong>${req.t('email.newRegistrationAdmin.parent2Label')}:</strong> ${registration.parent2FirstName} ${registration.parent2LastName} (${registration.parent2IdNumber})</p>
+                        <p style="margin: 8px 0; color: #333333;"><strong>${req.t('email.newRegistrationAdmin.submittedByLabel')}:</strong> ${registeredBy?.name || '-'} (${registeredBy?.email || '-'})</p>
+                    </td>
+                </tr>
+            </table>
+            <p style="text-align: center; margin: 28px 0;">
+                <a href="${adminUrl}" style="display: inline-block; background-color: #4A7B59; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600;">${req.t('email.newRegistrationAdmin.review')}</a>
+            </p>
+        `
+        const html = buildEmail({ title, contentHtml, t: req.t, lang })
 
         await sendEmail({
             to: recipients,
@@ -125,7 +145,7 @@ exports.createRegistration = async (req, res) => {
             !ageGroup || !branch) {
             return res.status(400).json({
                 success: false,
-                error: 'All fields are required'
+                error: req.t('reg.allFieldsRequired')
             })
         }
 
@@ -133,13 +153,13 @@ exports.createRegistration = async (req, res) => {
         if (!['under1', 'over1'].includes(ageGroup)) {
             return res.status(400).json({
                 success: false,
-                error: 'ageGroup must be under1 or over1'
+                error: req.t('reg.invalidAgeGroup')
             })
         }
         if (!['cityCenter', 'germanColony'].includes(branch)) {
             return res.status(400).json({
                 success: false,
-                error: 'branch must be cityCenter or germanColony'
+                error: req.t('reg.invalidBranch')
             })
         }
 
@@ -147,7 +167,7 @@ exports.createRegistration = async (req, res) => {
         if (!isValidObjectId(schoolYearId)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('reg.invalidSchoolYearId')
             })
         }
 
@@ -156,13 +176,13 @@ exports.createRegistration = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('reg.schoolYearNotFound')
             })
         }
         if (!schoolYear.isActive) {
             return res.status(400).json({
                 success: false,
-                error: 'This school year is not currently accepting registrations'
+                error: req.t('reg.schoolYearClosed')
             })
         }
 
@@ -180,7 +200,7 @@ exports.createRegistration = async (req, res) => {
         if (existingRegistration) {
             return res.status(409).json({
                 success: false,
-                error: 'A registration for this child already exists for the selected school year'
+                error: req.t('reg.alreadyExists')
             })
         }
 
@@ -210,14 +230,14 @@ exports.createRegistration = async (req, res) => {
             .exec()
 
         // Notify admins (fire-and-forget: do not fail the request if email fails)
-        sendAdminNotification(populated).catch(err => console.log('ADMIN NOTIFICATION ERROR', err))
+        sendAdminNotification(req, populated).catch(err => console.log('ADMIN NOTIFICATION ERROR', err))
 
         res.json({ success: true, data: populated })
     } catch (err) {
         console.log('CREATE REGISTRATION ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error creating registration'
+            error: req.t('reg.createError')
         })
     }
 }
@@ -229,14 +249,14 @@ exports.uploadSignedContract = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid registration ID'
+                error: req.t('reg.invalidId')
             })
         }
 
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                error: 'No PDF file uploaded'
+                error: req.t('reg.noPdfUploaded')
             })
         }
 
@@ -244,7 +264,7 @@ exports.uploadSignedContract = async (req, res) => {
         if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found'
+                error: req.t('reg.notFound')
             })
         }
 
@@ -252,7 +272,7 @@ exports.uploadSignedContract = async (req, res) => {
         if (registration.registeredBy.toString() !== req.auth._id) {
             return res.status(403).json({
                 success: false,
-                error: 'Not authorized to upload contract for this registration'
+                error: req.t('reg.notAuthorizedContract')
             })
         }
 
@@ -271,14 +291,14 @@ exports.uploadSignedContract = async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Signed contract uploaded successfully',
+            message: req.t('reg.contractUploaded'),
             data: updated
         })
     } catch (err) {
         console.log('UPLOAD SIGNED CONTRACT ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error uploading signed contract'
+            error: req.t('reg.contractUploadError')
         })
     }
 }
@@ -331,7 +351,7 @@ exports.getAllRegistrations = async (req, res) => {
         console.log('GET ALL REGISTRATIONS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching registrations'
+            error: req.t('reg.fetchError')
         })
     }
 }
@@ -343,7 +363,7 @@ exports.getRegistrationBreakdowns = async (req, res) => {
         if (!isValidObjectId(schoolYearId)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('reg.invalidSchoolYearId')
             })
         }
 
@@ -379,7 +399,7 @@ exports.getRegistrationBreakdowns = async (req, res) => {
         console.log('GET REGISTRATION BREAKDOWNS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching registration breakdowns'
+            error: req.t('reg.breakdownError')
         })
     }
 }
@@ -414,7 +434,7 @@ exports.getMyRegistrations = async (req, res) => {
         console.log('GET MY REGISTRATIONS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching registrations'
+            error: req.t('reg.fetchError')
         })
     }
 }
@@ -426,7 +446,7 @@ exports.getRegistration = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid registration ID'
+                error: req.t('reg.invalidId')
             })
         }
 
@@ -439,7 +459,7 @@ exports.getRegistration = async (req, res) => {
         if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found'
+                error: req.t('reg.notFound')
             })
         }
 
@@ -451,7 +471,7 @@ exports.getRegistration = async (req, res) => {
         if (!isOwner && !isAdmin) {
             return res.status(403).json({
                 success: false,
-                error: 'Not authorized to view this registration'
+                error: req.t('reg.notAuthorizedView')
             })
         }
 
@@ -460,7 +480,7 @@ exports.getRegistration = async (req, res) => {
         console.log('GET REGISTRATION ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching registration'
+            error: req.t('reg.fetchOneError')
         })
     }
 }
@@ -500,7 +520,7 @@ exports.getPendingRegistrations = async (req, res) => {
         console.log('GET PENDING REGISTRATIONS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching pending registrations'
+            error: req.t('reg.fetchPendingError')
         })
     }
 }
@@ -512,7 +532,7 @@ exports.getRegistrationsBySchoolYear = async (req, res) => {
         if (!isValidObjectId(schoolYearId)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('reg.invalidSchoolYearId')
             })
         }
 
@@ -550,7 +570,7 @@ exports.getRegistrationsBySchoolYear = async (req, res) => {
         console.log('GET REGISTRATIONS BY SCHOOL YEAR ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching registrations for school year'
+            error: req.t('reg.fetchBySchoolYearError')
         })
     }
 }
@@ -562,7 +582,7 @@ exports.approveRegistration = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid registration ID'
+                error: req.t('reg.invalidId')
             })
         }
 
@@ -570,14 +590,14 @@ exports.approveRegistration = async (req, res) => {
         if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found'
+                error: req.t('reg.notFound')
             })
         }
 
         if (registration.status !== 'pending') {
             return res.status(400).json({
                 success: false,
-                error: `Cannot approve. Registration is already ${registration.status}`
+                error: req.t('reg.cannotApprove', { status: registration.status })
             })
         }
 
@@ -592,18 +612,18 @@ exports.approveRegistration = async (req, res) => {
             .populate('reviewedBy', 'name')
             .exec()
 
-        await sendStatusNotification(populated, 'approved')
+        await sendStatusNotification(req, populated, 'approved')
 
         res.json({
             success: true,
-            message: 'Registration approved successfully',
+            message: req.t('reg.approved'),
             data: populated
         })
     } catch (err) {
         console.log('APPROVE REGISTRATION ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error approving registration'
+            error: req.t('reg.approveError')
         })
     }
 }
@@ -615,7 +635,7 @@ exports.rejectRegistration = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid registration ID'
+                error: req.t('reg.invalidId')
             })
         }
 
@@ -623,7 +643,7 @@ exports.rejectRegistration = async (req, res) => {
         if (!rejectionReason) {
             return res.status(400).json({
                 success: false,
-                error: 'Rejection reason is required'
+                error: req.t('reg.rejectionReasonRequired')
             })
         }
 
@@ -631,14 +651,14 @@ exports.rejectRegistration = async (req, res) => {
         if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found'
+                error: req.t('reg.notFound')
             })
         }
 
         if (registration.status !== 'pending') {
             return res.status(400).json({
                 success: false,
-                error: `Cannot reject. Registration is already ${registration.status}`
+                error: req.t('reg.cannotReject', { status: registration.status })
             })
         }
 
@@ -654,18 +674,18 @@ exports.rejectRegistration = async (req, res) => {
             .populate('reviewedBy', 'name')
             .exec()
 
-        await sendStatusNotification(populated, 'rejected', rejectionReason)
+        await sendStatusNotification(req, populated, 'rejected', rejectionReason)
 
         res.json({
             success: true,
-            message: 'Registration rejected',
+            message: req.t('reg.rejected'),
             data: populated
         })
     } catch (err) {
         console.log('REJECT REGISTRATION ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error rejecting registration'
+            error: req.t('reg.rejectError')
         })
     }
 }
@@ -677,7 +697,7 @@ exports.deleteRegistration = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid registration ID'
+                error: req.t('reg.invalidId')
             })
         }
 
@@ -685,7 +705,7 @@ exports.deleteRegistration = async (req, res) => {
         if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found'
+                error: req.t('reg.notFound')
             })
         }
 
@@ -698,13 +718,13 @@ exports.deleteRegistration = async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Registration deleted successfully'
+            message: req.t('reg.deleted')
         })
     } catch (err) {
         console.log('DELETE REGISTRATION ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error deleting registration'
+            error: req.t('reg.deleteError')
         })
     }
 }
@@ -716,7 +736,7 @@ exports.getSchoolYearStats = async (req, res) => {
         if (!isValidObjectId(schoolYearId)) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid school year ID'
+                error: req.t('reg.invalidSchoolYearId')
             })
         }
 
@@ -725,7 +745,7 @@ exports.getSchoolYearStats = async (req, res) => {
         if (!schoolYear) {
             return res.status(404).json({
                 success: false,
-                error: 'School year not found'
+                error: req.t('reg.schoolYearNotFound')
             })
         }
 
@@ -744,7 +764,7 @@ exports.getSchoolYearStats = async (req, res) => {
         console.log('GET SCHOOL YEAR STATS ERROR', err)
         return res.status(500).json({
             success: false,
-            error: 'Error fetching registration statistics'
+            error: req.t('reg.statisticsError')
         })
     }
 }

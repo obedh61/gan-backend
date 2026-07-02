@@ -9,6 +9,7 @@ const user = require('../models/user')
 const { response } = require('express')
 sgMail.setApiKey(process.env.SENDGRID_API_KEY)
 const nodemailer = require('nodemailer');
+const buildEmail = require('../utils/emailLayout');
 
 
 // exports.signup = (req, res) => {
@@ -123,7 +124,7 @@ exports.signup = async (req, res) => {
     const existingUser = await User.findOne({ email }).exec();
     if (existingUser) {
       return res.status(401).json({
-        error: 'Email is already taken',
+        error: req.t('auth.emailTaken'),
       });
     }
 
@@ -140,39 +141,45 @@ exports.signup = async (req, res) => {
     });
 
     // Enviar correo de activación
-    await sendActivationEmail(email, token, transporter);
+    await sendActivationEmail(email, token, transporter, req.t, req.lang);
 
     // Responder al cliente con éxito
     res.status(200).json({
-      message: 'Signup successful! Please check your email to activate your account.',
+      message: req.t('auth.signupSuccess'),
     });
 
   } catch (error) {
     console.error('Error during signup:', error);
     res.status(500).json({
-      error: 'An error occurred during the signup process. Please try again later.',
+      error: req.t('auth.signupError'),
     });
   }
 };
 
-const sendActivationEmail = async (email, token, transporter) => {
+const sendActivationEmail = async (email, token, transporter, t, lang) => {
   try {
     const curl = process.env.NODE_ENV === 'production' ? 'https://gansecondhome.com' : process.env.CLIENT_URL
+    const link = `${curl}/#/auth/activate/${token}`
+    const title = t('email.accountActivation.heading')
+    const contentHtml = `
+      <p>${t('email.accountActivation.body') || t('email.accountActivation.heading')}:</p>
+      <p style="margin: 24px 0; text-align: center;">
+        <a href="${link}" style="display: inline-block; background-color: #4A7B59; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600;">${t('email.accountActivation.button') || 'Activate Account'}</a>
+      </p>
+      <p style="word-break: break-all; color: #555555; font-size: 14px;">${link}</p>
+      <p style="color: #888888; font-size: 14px; margin-top: 24px;">${t('email.accountActivation.sensitive')}</p>
+    `
+    const html = buildEmail({ title, contentHtml, t, lang })
+    const text = `${title}\n\n${link}\n\n${t('email.accountActivation.sensitive')}`
+
     const result = await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'Account activation link',
-      text: 'Welcome to Gan Montessori Second Home',
-      html: `
-        <h1>Please use the following link to activate your account</h1>
-        <p>${curl}/#/auth/activate/${token}</p>
-        <hr />
-        <p>This email contains sensitive information</p>
-        <p>${curl}</p>
-      `,
+      subject: t('email.accountActivation.subject'),
+      text,
+      html,
     });
-    
-    
+
     console.log('Activation email sent:', JSON.stringify(result, null, 4));
   } catch (error) {
     console.error('Error sending activation email:', error);
@@ -188,7 +195,7 @@ exports.accountActivation = (req, res) => {
       if(err) {
         console.log('JWT VERIFY IN ACCOUNT ACTIVATION ERROR', err)
         return res.status(401).json({
-          error: 'Expired link. Signup again'
+          error: req.t('auth.expiredLinkSignup')
         })
       }
       const {name, email, password} = jwt.decode(token)
@@ -198,13 +205,13 @@ exports.accountActivation = (req, res) => {
       user.save()
       .then(()=>{
           res.json({
-              message: 'Signup success! Please signin'
+              message: req.t('auth.signupComplete')
           })
       })
       .catch((err)=>{
           console.log('SIGNUP ERROR', err);
           return res.status(401).json({
-              error: 'Error saving user in database. Try signup again'
+              error: req.t('auth.dbSaveError')
           })
       })
     })
@@ -218,13 +225,13 @@ exports.signin = (req, res) => {
   auth.then((user) => {
     if(!user) {
       return res.status(400).json({
-        error: 'User does not exist. Please signup'
+        error: req.t('auth.userNotFound')
       })
     }
     //authenticate
     if(!user.authenticate(password)) {
       return res.status(400).json({
-        error: 'Email and password do not match'
+        error: req.t('auth.invalidCredentials')
       })
     }
     // generate a token and send to client
@@ -300,13 +307,13 @@ exports.adminMiddleware = (req, res, next) => {
     .then(user => {
       if(!user) {
         return res.status(400).json({
-          error: 'User does not exist. '
+          error: req.t('auth.userDoesNotExist')
         })
       }
 
       if (user.role !== 'admin') {
         return res.status(400).json({
-          error: 'Admin resource. Access denied.'
+          error: req.t('auth.accessDenied')
         })
       }
 
@@ -382,7 +389,7 @@ exports.forgotPassword = async (req, res) => {
     const user = await User.findOne({ email }).exec();
     if (!user) {
       return res.status(400).json({
-        error: 'User does not exist.',
+        error: req.t('auth.userDoesNotExist'),
       });
     }
 
@@ -393,19 +400,26 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordLink = token;
     await user.save();
     const curl = process.env.NODE_ENV === 'production' ? 'https://gansecondhome.com' : process.env.CLIENT_URL
+    const link = `${curl}/#/auth/password/reset/${token}`
+    const title = req.t('email.passwordReset.heading')
+    const contentHtml = `
+      <p>${req.t('email.passwordReset.body') || req.t('email.passwordReset.heading')}:</p>
+      <p style="margin: 24px 0; text-align: center;">
+        <a href="${link}" style="display: inline-block; background-color: #4A7B59; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600;">${req.t('email.passwordReset.button') || 'Reset Password'}</a>
+      </p>
+      <p style="word-break: break-all; color: #555555; font-size: 14px;">${link}</p>
+      <p style="color: #888888; font-size: 14px; margin-top: 24px;">${req.t('email.passwordReset.sensitive')}</p>
+    `
+    const html = buildEmail({ title, contentHtml, t: req.t, lang: req.lang })
+    const text = `${title}\n\n${link}\n\n${req.t('email.passwordReset.sensitive')}`
+
     // Crear el contenido del correo electrónico
     const emailData = {
       from: process.env.EMAIL_USER, // El correo desde el cual se enviará el mensaje
       to: email, // El correo del usuario al que se enviará el mensaje
-      subject: 'Password reset link',
-      text: 'and easy to do anywhere, even with Node.js',
-      html: `
-        <h1>Please use the following link to reset your password.</h1>
-        <p>${curl}/#/auth/password/reset/${token}</p>
-        <hr />
-        <p>This email contains sensitive information</p>
-        <p>${curl}</p>
-      `,
+      subject: req.t('email.passwordReset.subject'),
+      text,
+      html,
     };
 
     // Configuración del transporte de Nodemailer
@@ -422,7 +436,7 @@ exports.forgotPassword = async (req, res) => {
 
     console.log('Password reset email sent', result);
     return res.json({
-      message: `Email has been sent to ${email}. Please follow the instructions to reset your password.`,
+      message: req.t('auth.resetEmailSent', { email }),
     });
 
   } catch (error) {
@@ -430,7 +444,7 @@ exports.forgotPassword = async (req, res) => {
     
     // Si ocurrió un error durante la consulta de la base de datos o el envío de correo, respondemos con un error
     return res.status(500).json({
-      error: 'There was an error processing your request. Please try again later.',
+      error: req.t('auth.resetRequestError'),
     });
   }
 };
@@ -442,7 +456,7 @@ exports.resetPassword = (req, res) => {
     jwt.verify(resetPasswordLink, process.env.JWT_RESET_PASSWORD, function(err, decode) {
       if(err) {
         return res.status(400).json({
-          error: 'Expired link. try again'
+          error: req.t('auth.expiredLink')
         })
       }
 
@@ -450,7 +464,7 @@ exports.resetPassword = (req, res) => {
         .then(user => {
           if(!user) {
             return res.status(400).json({
-              error: 'Something went wrong. Try later'
+              error: req.t('auth.genericError')
             })
           }
 
@@ -464,12 +478,12 @@ exports.resetPassword = (req, res) => {
           user.save()
             .then(result => {
               res.json({
-                message: `Great! Now you can login with your new password`
+                message: req.t('auth.resetSuccess')
               })
             })
             .catch(e => {
                 return res.status(400).json({
-                error: 'Something went wrong with reset.'
+                error: req.t('auth.resetError')
               })
             })
         })
@@ -506,7 +520,7 @@ exports.googleLogin = (req, res) => {
               })
               .catch(e => {
                   return res.status(400).json({
-                    error: 'error google login.'
+                    error: req.t('auth.googleError')
                   })
               })
           }
@@ -515,7 +529,7 @@ exports.googleLogin = (req, res) => {
         })
       } else {
         return res.status(400).json({
-          error: 'google login failed.'
+          error: req.t('auth.googleLoginFailed')
         })
       }
     })
