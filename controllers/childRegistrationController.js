@@ -156,7 +156,7 @@ exports.createRegistration = async (req, res) => {
                 error: req.t('reg.invalidAgeGroup')
             })
         }
-        if (!['cityCenter', 'germanColony'].includes(branch)) {
+        if (!['cityCenter', 'germanColony', 'rachelImenu'].includes(branch)) {
             return res.status(400).json({
                 success: false,
                 error: req.t('reg.invalidBranch')
@@ -373,7 +373,8 @@ exports.getRegistrationBreakdowns = async (req, res) => {
 
         const branches = {
             cityCenter: { total: 0, pending: 0, approved: 0, rejected: 0 },
-            germanColony: { total: 0, pending: 0, approved: 0, rejected: 0 }
+            germanColony: { total: 0, pending: 0, approved: 0, rejected: 0 },
+            rachelImenu: { total: 0, pending: 0, approved: 0, rejected: 0 }
         }
         const ages = {
             under1: { total: 0, pending: 0, approved: 0, rejected: 0 },

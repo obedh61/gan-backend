@@ -75,7 +75,7 @@ const childRegistrationSchema = new mongoose.Schema(
         },
         branch: {
             type: String,
-            enum: ['cityCenter', 'germanColony'],
+            enum: ['cityCenter', 'germanColony', 'rachelImenu'],
             required: true
         },
 

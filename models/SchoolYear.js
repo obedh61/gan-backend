@@ -32,7 +32,9 @@ const schoolYearSchema = new mongoose.Schema(
             cityCenterUnderOne: { type: String, default: '' },
             cityCenterOverOne: { type: String, default: '' },
             germanColonyUnderOne: { type: String, default: '' },
-            germanColonyOverOne: { type: String, default: '' }
+            germanColonyOverOne: { type: String, default: '' },
+            rachelImenuUnderOne: { type: String, default: '' },
+            rachelImenuOverOne: { type: String, default: '' }
         },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
@@ -57,9 +59,7 @@ schoolYearSchema.pre('save', function (next) {
 // methods
 schoolYearSchema.methods = {
     getContractUrl: function (branch, ageGroup) {
-        const key = branch === 'cityCenter'
-            ? (ageGroup === 'underOne' ? 'cityCenterUnderOne' : 'cityCenterOverOne')
-            : (ageGroup === 'underOne' ? 'germanColonyUnderOne' : 'germanColonyOverOne');
+        const key = `${branch}${ageGroup === 'underOne' ? 'UnderOne' : 'OverOne'}`;
         return this.contracts[key] || '';
     }
 };

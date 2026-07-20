@@ -9,7 +9,9 @@ const VALID_CONTRACT_TYPES = [
     'cityCenterUnderOne',
     'cityCenterOverOne',
     'germanColonyUnderOne',
-    'germanColonyOverOne'
+    'germanColonyOverOne',
+    'rachelImenuUnderOne',
+    'rachelImenuOverOne'
 ]
 
 // Helper: extract Cloudinary publicId from a raw resource URL
@@ -333,7 +335,7 @@ exports.getContractByParams = async (req, res) => {
             })
         }
 
-        const validBranches = ['cityCenter', 'germanColony']
+        const validBranches = ['cityCenter', 'germanColony', 'rachelImenu']
         const validAgeGroups = ['under1', 'over1']
 
         if (!validBranches.includes(branch)) {
