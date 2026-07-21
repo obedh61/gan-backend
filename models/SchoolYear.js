@@ -36,6 +36,14 @@ const schoolYearSchema = new mongoose.Schema(
             rachelImenuUnderOne: { type: String, default: '' },
             rachelImenuOverOne: { type: String, default: '' }
         },
+        contractsHe: {
+            cityCenterUnderOne: { type: String, default: '' },
+            cityCenterOverOne: { type: String, default: '' },
+            germanColonyUnderOne: { type: String, default: '' },
+            germanColonyOverOne: { type: String, default: '' },
+            rachelImenuUnderOne: { type: String, default: '' },
+            rachelImenuOverOne: { type: String, default: '' }
+        },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
@@ -58,8 +66,12 @@ schoolYearSchema.pre('save', function (next) {
 
 // methods
 schoolYearSchema.methods = {
-    getContractUrl: function (branch, ageGroup) {
+    getContractUrl: function (branch, ageGroup, lang) {
         const key = `${branch}${ageGroup === 'underOne' ? 'UnderOne' : 'OverOne'}`;
+        // Hebrew UI: prefer the Hebrew version, fall back to English if missing
+        if (lang === 'he' && this.contractsHe && this.contractsHe[key]) {
+            return this.contractsHe[key];
+        }
         return this.contracts[key] || '';
     }
 };

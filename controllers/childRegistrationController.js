@@ -186,9 +186,9 @@ exports.createRegistration = async (req, res) => {
             })
         }
 
-        // Get the appropriate contract URL based on branch + ageGroup
+        // Get the appropriate contract URL based on branch + ageGroup, in the user's language
         const mappedAgeGroup = ageGroupMap[ageGroup]
-        const assignedContractUrl = schoolYear.getContractUrl(branch, mappedAgeGroup)
+        const assignedContractUrl = schoolYear.getContractUrl(branch, mappedAgeGroup, req.lang)
 
         // Prevent duplicate registration for the same child by the same user in the same school year
         const existingRegistration = await ChildRegistration.findOne({

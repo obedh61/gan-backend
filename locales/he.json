@@ -94,6 +94,7 @@
   "schoolYear.deleted": "שנת הלימודים נמחקה בהצלחה",
   "schoolYear.deleteError": "שגיאה במחיקת שנת הלימודים",
   "schoolYear.invalidContractType": "סוג חוזה לא תקין. חייב להיות אחד מ: cityCenterUnderOne, cityCenterOverOne, germanColonyUnderOne, germanColonyOverOne, rachelImenuUnderOne, rachelImenuOverOne",
+  "schoolYear.invalidContractLang": "שפת חוזה לא תקינה. חייבת להיות אחת מ: en, he",
   "schoolYear.noPdfUploaded": "לא הועלה קובץ PDF",
   "schoolYear.contractUploaded": "החוזה הועלה בהצלחה",
   "schoolYear.contractUploadError": "שגיאה בהעלאת החוזה",

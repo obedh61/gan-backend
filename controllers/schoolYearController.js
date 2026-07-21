@@ -14,6 +14,8 @@ const VALID_CONTRACT_TYPES = [
     'rachelImenuOverOne'
 ]
 
+const VALID_CONTRACT_LANGS = ['en', 'he']
+
 // Helper: extract Cloudinary publicId from a raw resource URL
 // URL format: https://res.cloudinary.com/{cloud}/raw/upload/v{timestamp}/{publicId}
 const extractPublicId = (url) => {
@@ -111,7 +113,7 @@ exports.listSchoolYears = async (req, res) => {
 exports.getActiveSchoolYears = async (req, res) => {
     try {
         const schoolYears = await SchoolYear.find({ isActive: true })
-            .select('name startMonth startYear endMonth endYear contracts')
+            .select('name startMonth startYear endMonth endYear contracts contractsHe')
             .sort({ startYear: -1 })
             .exec()
 
@@ -225,13 +227,15 @@ exports.deleteSchoolYear = async (req, res) => {
             })
         }
 
-        // Clean up contract PDFs from Cloudinary
-        const contracts = schoolYear.contracts
+        // Clean up contract PDFs from Cloudinary (English + Hebrew)
         const deletePromises = []
-        for (const field of VALID_CONTRACT_TYPES) {
-            const publicId = extractPublicId(contracts[field])
-            if (publicId) {
-                deletePromises.push(deleteContractPDF(publicId).catch(() => {}))
+        for (const contractSet of [schoolYear.contracts, schoolYear.contractsHe]) {
+            if (!contractSet) continue
+            for (const field of VALID_CONTRACT_TYPES) {
+                const publicId = extractPublicId(contractSet[field])
+                if (publicId) {
+                    deletePromises.push(deleteContractPDF(publicId).catch(() => {}))
+                }
             }
         }
         await Promise.all(deletePromises)
@@ -258,12 +262,19 @@ exports.uploadContract = async (req, res) => {
             })
         }
 
-        const { contractType } = req.body
+        const { contractType, lang = 'en' } = req.body
 
         if (!VALID_CONTRACT_TYPES.includes(contractType)) {
             return res.status(400).json({
                 success: false,
                 error: req.t('schoolYear.invalidContractType')
+            })
+        }
+
+        if (!VALID_CONTRACT_LANGS.includes(lang)) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('schoolYear.invalidContractLang')
             })
         }
 
@@ -282,8 +293,10 @@ exports.uploadContract = async (req, res) => {
             })
         }
 
+        const contractSet = lang === 'he' ? 'contractsHe' : 'contracts'
+
         // Delete old contract from Cloudinary if one exists
-        const oldUrl = schoolYear.contracts[contractType]
+        const oldUrl = schoolYear[contractSet][contractType]
         const oldPublicId = extractPublicId(oldUrl)
         if (oldPublicId) {
             await deleteContractPDF(oldPublicId).catch(() => {})
@@ -293,7 +306,7 @@ exports.uploadContract = async (req, res) => {
         const result = await uploadContractPDF(req.file.buffer, 'gan-contracts')
 
         // Update school year with new URL
-        schoolYear.contracts[contractType] = result.url
+        schoolYear[contractSet][contractType] = result.url
         const updated = await schoolYear.save()
 
         res.json({
@@ -301,6 +314,7 @@ exports.uploadContract = async (req, res) => {
             message: req.t('schoolYear.contractUploaded'),
             data: {
                 contractType,
+                lang,
                 url: result.url,
                 publicId: result.publicId,
                 schoolYear: updated
@@ -326,7 +340,7 @@ exports.getContractByParams = async (req, res) => {
             })
         }
 
-        const { branch, ageGroup } = req.query
+        const { branch, ageGroup, lang } = req.query
 
         if (!branch || !ageGroup) {
             return res.status(400).json({
@@ -352,6 +366,9 @@ exports.getContractByParams = async (req, res) => {
             })
         }
 
+        // Explicit lang param wins over Accept-Language detection
+        const contractLang = VALID_CONTRACT_LANGS.includes(lang) ? lang : req.lang
+
         const schoolYear = await SchoolYear.findById(id).exec()
         if (!schoolYear) {
             return res.status(404).json({
@@ -362,7 +379,7 @@ exports.getContractByParams = async (req, res) => {
 
         // Map under1/over1 to underOne/overOne for the model method
         const ageGroupMap = { under1: 'underOne', over1: 'overOne' }
-        const contractUrl = schoolYear.getContractUrl(branch, ageGroupMap[ageGroup])
+        const contractUrl = schoolYear.getContractUrl(branch, ageGroupMap[ageGroup], contractLang)
 
         if (!contractUrl) {
             return res.status(404).json({

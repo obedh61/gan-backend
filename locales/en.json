@@ -94,6 +94,7 @@
   "schoolYear.deleted": "School year deleted successfully",
   "schoolYear.deleteError": "Error deleting school year",
   "schoolYear.invalidContractType": "Invalid contract type. Must be one of: cityCenterUnderOne, cityCenterOverOne, germanColonyUnderOne, germanColonyOverOne, rachelImenuUnderOne, rachelImenuOverOne",
+  "schoolYear.invalidContractLang": "Invalid contract language. Must be one of: en, he",
   "schoolYear.noPdfUploaded": "No PDF file uploaded",
   "schoolYear.contractUploaded": "Contract uploaded successfully",
   "schoolYear.contractUploadError": "Error uploading contract",
