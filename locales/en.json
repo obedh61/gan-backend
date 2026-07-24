@@ -23,6 +23,12 @@
   "user.nameRequired": "Name is required",
   "user.passwordMinLength": "Password should be min 6 characters long",
   "user.updateFailed": "User update failed",
+  "user.fetchError": "Error fetching users",
+  "user.deleted": "User deleted successfully",
+  "user.deleteError": "Error deleting user",
+  "user.cannotModifySelf": "You cannot modify your own account",
+  "user.invalidRole": "Invalid role. Must be one of: subscriber, admin",
+  "user.invalidBlocked": "isBlocked must be a boolean",
 
   "worker.usernameIdRequired": "Username and ID number are required",
   "worker.idExists": "User with this ID number already exists",
@@ -50,6 +56,7 @@
   "timeSession.exportPdfError": "Failed to export sessions PDF",
 
   "reg.allFieldsRequired": "All fields are required",
+  "reg.userBlocked": "Your account is blocked from registering new children. Please contact the administration.",
   "reg.invalidAgeGroup": "ageGroup must be under1 or over1",
   "reg.invalidBranch": "branch must be cityCenter, germanColony or rachelImenu",
   "reg.invalidSchoolYearId": "Invalid school year ID",

@@ -25,6 +25,10 @@ const userScheama = new mongoose.Schema(
             type: String,
             default: 'subscriber'
         },
+        isBlocked: {
+            type: Boolean,
+            default: false
+        },
         resetPasswordLink: {
             type: String,
             default: ''

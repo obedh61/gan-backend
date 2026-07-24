@@ -149,6 +149,15 @@ exports.createRegistration = async (req, res) => {
             })
         }
 
+        // Blocked users cannot register new children (login is unaffected)
+        const requestingUser = await User.findById(req.auth._id).select('isBlocked').exec()
+        if (requestingUser && requestingUser.isBlocked) {
+            return res.status(403).json({
+                success: false,
+                error: req.t('reg.userBlocked')
+            })
+        }
+
         // Validate enum values
         if (!['under1', 'over1'].includes(ageGroup)) {
             return res.status(400).json({

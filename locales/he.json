@@ -23,6 +23,12 @@
   "user.nameRequired": "נדרש שם",
   "user.passwordMinLength": "הסיסמה חייבת להיות באורך מינימום 6 תווים",
   "user.updateFailed": "עדכון המשתמש נכשל",
+  "user.fetchError": "שגיאה באחזור המשתמשים",
+  "user.deleted": "המשתמש נמחק בהצלחה",
+  "user.deleteError": "שגיאה במחיקת המשתמש",
+  "user.cannotModifySelf": "לא ניתן לשנות את החשבון שלך",
+  "user.invalidRole": "תפקיד לא תקין. חייב להיות אחד מ: subscriber, admin",
+  "user.invalidBlocked": "isBlocked חייב להיות ערך בוליאני",
 
   "worker.usernameIdRequired": "נדרשים שם משתמש ומספר תעודת זהות",
   "worker.idExists": "משתמש עם מספר תעודת זהות זה כבר קיים",
@@ -50,6 +56,7 @@
   "timeSession.exportPdfError": "ייצוא המשמרות ל-PDF נכשל",
 
   "reg.allFieldsRequired": "כל השדות נדרשים",
+  "reg.userBlocked": "החשבון שלך חסום מרישום ילדים חדשים. אנא צור קשר עם ההנהלה.",
   "reg.invalidAgeGroup": "קבוצת הגיל חייבת להיות under1 או over1",
   "reg.invalidBranch": "הסניף חייב להיות cityCenter, germanColony או rachelImenu",
   "reg.invalidSchoolYearId": "מזהה שנת לימודים לא תקין",
